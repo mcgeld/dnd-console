@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Config
+TARGET="/home/malcolm/projects/dnd-console-live"
+GIT_DIR="/home/malcolm/projects/dnd-console.git"
+BRANCH="main"
+NGINX_DEPLOY_DIR="/var/www/websites/dnd/console"
+API_SERVICE="dnd-api"
+
+while read oldrev newrev ref
+do
+  if [[ "$ref" = "refs/heads/$BRANCH" ]]; then
+    echo "📦 Deploying $BRANCH to $TARGET..."
+
+    git --work-tree="$TARGET" --git-dir="$GIT_DIR" checkout -f "$BRANCH"
+
+    echo "📦 Installing dependencies..."
+    cd "$TARGET"
+    npm ci
+
+    echo "🛠️ Building frontend..."
+    npm run build
+
+    echo "🚚 Copying build to Nginx folder..."
+    sudo rm -rf "$NGINX_DEPLOY_DIR"/*
+    sudo cp -r dist/* "$NGINX_DEPLOY_DIR/"
+
+    echo "🖼️  Copying images to Nginx folder..."
+    sudo rsync -av --delete "$TARGET/images/" "$NGINX_DEPLOY_DIR/images/"
+
+    echo "🔄 Restarting FastAPI backend ($API_SERVICE)..."
+    sudo systemctl restart "$API_SERVICE"
+
+    echo "✅ Deploy complete."
+  fi
+done
+
